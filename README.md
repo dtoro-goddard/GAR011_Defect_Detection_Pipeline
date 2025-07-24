@@ -1,236 +1,166 @@
-# Roboflow Photo Uploader
+# ML Pipeline SDK
 
-A Python program that uses the Roboflow SDK to upload photos to your Roboflow projects. This tool supports both single image uploads and batch uploads from directories, with comprehensive error handling and logging.
+A comprehensive Python toolkit for managing computer vision datasets and models with Roboflow and SharePoint integration. Includes robust CLI tools and scripts for dataset upload/download, bi-directional sync, model inference, video stream processing, data capture, and model training.
 
 ## Features
+- **Roboflow Integration**: Upload, download, and train models on Roboflow projects.
+- **SharePoint Sync**: Bi-directional sync between local folders and SharePoint document libraries.
+- **Dataset Management**: Enforce and sync `train/`, `valid/`, and `test/` folder structure.
+- **Model Inference**: Run models on single images, folders, or live video streams.
+- **Video Data Capture**: Capture frames from a camera directly into dataset folders.
+- **End-to-End Pipeline**: Sync, annotate, train, and deploy—all from the command line.
 
-- **Single Image Upload**: Upload individual photos to your Roboflow project
-- **Batch Upload**: Upload multiple images from a directory at once
-- **Dataset Splits**: Support for train, validation, and test splits
+## Requirements
+- Python 3.8+
+- [roboflow](https://pypi.org/project/roboflow/)
+- [Office365-REST-Python-Client](https://pypi.org/project/Office365-REST-Python-Client/)
+- [opencv-python](https://pypi.org/project/opencv-python/)
+- [supervision](https://pypi.org/project/supervision/) (for video inference)
 
-## Prerequisites
+Install all requirements:
+```sh
+pip install -r requirements.txt
+pip install Office365-REST-Python-Client opencv-python supervision
+```
 
-- Python 3.7 or higher
-- A Roboflow account and API key
-- A Roboflow project created in your workspace
+## Quickstart
+A minimal end-to-end workflow:
 
-## Installation
-
-1. **Clone or download this repository**
-   ```bash
-   git clone <repository-url>
-   cd ml_pipeline_sdk
+1. **Login to Roboflow and save your credentials**
+   ```sh
+   python ml_pipeline_cli.py login
+   ```
+2. **Capture training data from your camera**
+   ```sh
+   python video_capture.py --output-folder ./dataset --split train --camera 0 --frame-interval 5 --duration 60
+   # Repeat for --split valid and --split test as needed
+   ```
+3. **Upload your images to Roboflow**
+   ```sh
+   python ml_pipeline_cli.py upload --directory ./dataset/train --split train
+   python ml_pipeline_cli.py upload --directory ./dataset/valid --split valid
+   python ml_pipeline_cli.py upload --directory ./dataset/test --split test
+   ```
+4. **Train a model on your dataset**
+   ```sh
+   python train_model.py --project <project> --workspace <workspace>
+   ```
+5. **Run inference on a new image**
+   ```sh
+   python ml_pipeline_cli.py infer --image path/to/image.jpg --model-id <project/version>
+   ```
+6. **(Optional) Run real-time inference on your camera**
+   ```sh
+   python video_infer.py --model-id <project/version>
    ```
 
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Get your Roboflow API key**
-   - Go to [Roboflow](https://roboflow.com)
-   - Sign in to your account
-   - Navigate to your workspace settings
-   - Copy your API key
-
-## Usage
-
-### Basic Commands
-
-#### Upload a Single Image
-```bash
-python roboflow_uploader.py \
-  --api-key YOUR_API_KEY \
-  --project your-project-name \
-  --workspace your-workspace-name \
-  --image path/to/your/image.jpg
+## Authentication
+### Roboflow
+Run the login command to securely store your API key and (optionally) default project/workspace:
+```sh
+python ml_pipeline_cli.py login
+```
+Or set environment variables:
+```sh
+export ROBOFLOW_API_KEY="your_api_key"
+export ROBOFLOW_PROJECT="your_project"
+export ROBOFLOW_WORKSPACE="your_workspace"
 ```
 
-#### Upload All Images from a Directory
-```bash
-python roboflow_uploader.py \
-  --api-key YOUR_API_KEY \
-  --project your-project-name \
-  --workspace your-workspace-name \
-  --directory path/to/images/folder \
-  --split train
+### SharePoint
+You can authenticate with either username/password or Azure AD App credentials (client ID/secret). Pass these as CLI arguments to sync commands.
+
+## CLI Usage
+Run `python ml_pipeline_cli.py --help` for all options.
+
+### Upload Images to Roboflow
+```sh
+python ml_pipeline_cli.py upload --image path/to/image.jpg --project <project> --workspace <workspace> --api-key <key>
+python ml_pipeline_cli.py upload --directory path/to/images --split train --project <project> --workspace <workspace> --api-key <key>
 ```
 
-#### Upload with Custom File Extensions
-```bash
-python roboflow_uploader.py \
-  --api-key YOUR_API_KEY \
-  --project your-project-name \
-  --workspace your-workspace-name \
-  --directory path/to/images/folder \
-  --extensions .jpg .png .tiff
+### Download Dataset from Roboflow
+```sh
+python ml_pipeline_cli.py download --output-dir ./data --format yolov8 --version 1 --project <project> --workspace <workspace> --api-key <key>
 ```
 
-#### Display Project Information
-```bash
-python roboflow_uploader.py \
-  --api-key YOUR_API_KEY \
-  --project your-project-name \
-  --workspace your-workspace-name \
-  --info
+### Run Model Inference
+```sh
+python ml_pipeline_cli.py infer --image path/to/image.jpg --model-id <project/version> --api-key <key>
+python ml_pipeline_cli.py infer --directory path/to/images --model-id <project/version> --api-key <key>
 ```
 
-### Command Line Arguments
-
-| Argument | Required | Description | Default |
-|----------|----------|-------------|---------|
-| `--api-key` | Yes | Your Roboflow API key | - |
-| `--project` | Yes | Name of your Roboflow project | - |
-| `--workspace` | Yes | Name of your Roboflow workspace | - |
-| `--image` | No* | Path to a single image file | - |
-| `--directory` | No* | Directory containing images to upload | - |
-| `--split` | No | Dataset split (train/valid/test) | train |
-| `--extensions` | No | File extensions to upload | .jpg .jpeg .png .bmp .tiff |
-| `--info` | No | Display project information | False |
-
-*Either `--image` or `--directory` must be specified (unless using `--info`)
-
-### Examples
-
-#### Example 1: Upload Training Images
-```bash
-python roboflow_uploader.py \
-  --api-key rf_abc123def456 \
-  --project "my-object-detection-project" \
-  --workspace "my-workspace" \
-  --directory "./training_images" \
-  --split train
+### Sync Local Folder with SharePoint
+```sh
+python ml_pipeline_cli.py sync --sharepoint-site <site_url> --sharepoint-folder "Shared Documents/Folder" --local-folder ./data/train --direction both --username <user> --password <pass>
 ```
+- Use `--direction to-local` or `--direction to-sharepoint` for one-way sync.
+- You can use `--client-id` and `--client-secret` for Azure AD App authentication.
 
-#### Example 2: Upload Validation Images
-```bash
-python roboflow_uploader.py \
-  --api-key rf_abc123def456 \
-  --project "my-object-detection-project" \
-  --workspace "my-workspace" \
-  --directory "./validation_images" \
-  --split valid
+### Sync All (Local, SharePoint, Roboflow)
+```sh
+python ml_pipeline_cli.py sync-all --local-root ./data --sharepoint-site <site_url> --sharepoint-folder "Shared Documents/Dataset" --project <project> --workspace <workspace> --api-key <key> --username <user> --password <pass>
 ```
+- This will sync `train/`, `valid/`, and `test/` folders across all three locations.
 
-#### Example 3: Upload Only JPG and PNG Files
-```bash
-python roboflow_uploader.py \
-  --api-key rf_abc123def456 \
-  --project "my-object-detection-project" \
-  --workspace "my-workspace" \
-  --directory "./images" \
-  --extensions .jpg .png
+### Train a Model on Roboflow
+```sh
+python train_model.py --api-key <key> --project <project> --workspace <workspace> --model-type yolov8 --epochs 50 --batch-size 16
 ```
+- Monitors training status and prints results.
 
-#### Example 4: Upload a Single Test Image
-```bash
-python roboflow_uploader.py \
-  --api-key rf_abc123def456 \
-  --project "my-object-detection-project" \
-  --workspace "my-workspace" \
-  --image "./test_image.jpg" \
-  --split test
+### Video Stream Inference
+```sh
+python video_infer.py --model-id <project/version> --api-key <key> --camera 0 --confidence 0.4 --output output.mp4
 ```
+- Runs real-time inference on your camera stream and displays annotated results.
+- Press `q` to quit.
 
-## Output and Logging
-
-The program provides comprehensive feedback:
-
-### Console Output
-- Real-time upload progress
-- Success/failure messages for each file
-- Summary statistics for batch uploads
-- Error messages for failed uploads
-
-### Log File
-All activities are logged to `roboflow_upload.log` in the current directory, including:
-- Connection status
-- Upload attempts and results
-- Error details
-- Timestamps for all operations
-
-### Example Output
+### Video Data Capture
+```sh
+python video_capture.py --output-folder ./dataset --split train --camera 0 --frame-interval 5 --duration 60
 ```
-2024-01-15 10:30:15 - INFO - Successfully connected to project: my-object-detection-project
-2024-01-15 10:30:15 - INFO - Found 25 images to upload
-2024-01-15 10:30:16 - INFO - Uploading ./images/cat1.jpg to train split...
-2024-01-15 10:30:17 - INFO - Successfully uploaded cat1 to train split
-...
+- Saves every 5th frame from the camera to `./dataset/train/` for 60 seconds (or until you press `q`).
 
-Upload Summary:
-  Total files: 25
-  Successful: 25
-  Failed: 0
+## Dataset Structure
+All dataset operations expect the following structure:
 ```
-
-## Error Handling
-
-The program includes robust error handling:
-
-- **Network Issues**: Automatic retry with exponential backoff
-- **Invalid Files**: Skips corrupted or unsupported files
-- **API Errors**: Detailed error messages for troubleshooting
-- **Missing Files/Directories**: Clear error messages for missing paths
-- **Authentication Errors**: Helpful messages for API key issues
-
-## Supported File Formats
-
-The program supports the following image formats:
-- JPEG (.jpg, .jpeg)
-- PNG (.png)
-- BMP (.bmp)
-- TIFF (.tiff)
-
-## Environment Variables (Optional)
-
-You can set environment variables to avoid passing API keys on the command line:
-
-```bash
-export ROBOFLOW_API_KEY="your_api_key_here"
-export ROBOFLOW_PROJECT="your_project_name"
-export ROBOFLOW_WORKSPACE="your_workspace_name"
+<root>/
+  train/
+  valid/
+  test/
 ```
-
-Then use the script without the `--api-key`, `--project`, and `--workspace` arguments.
 
 ## Troubleshooting
+- **Authentication errors**: Double-check your API key, project/workspace names, and SharePoint credentials.
+- **Missing dependencies**: Install all required packages as shown above.
+- **SharePoint sync issues**: Ensure your account/app has permissions for the target site/library.
+- **Video errors**: Make sure your camera is connected and accessible by OpenCV.
 
-### Common Issues
+## Annotating Data
+In Roboflow:
+select or create a project on the project page
 
-1. **"Failed to initialize Roboflow connection"**
-   - Check your API key is correct
-   - Verify your project and workspace names
-   - Ensure you have internet connectivity
+![Project Example](ProjectPage.png)
 
-2. **"Image file not found"**
-   - Verify the file path is correct
-   - Check file permissions
-   - Ensure the file exists
+Upload data
 
-3. **"No image files found in directory"**
-   - Check the directory path
-   - Verify files have supported extensions
-   - Check file permissions
+Annotate by either using the AI assist feature (good at recognizing shapes that contract the background) or use the polygon tool to select and label regions
 
-4. **Upload failures**
-   - Check your Roboflow project settings
-   - Verify you have upload permissions
-   - Check file size limits
+![DataSet Example](DatasetPage.png)
 
-### Getting Help
+Make sure to leave some images for Validation and Testing
 
-- Check the log file `roboflow_upload.log` for detailed error information
-- Verify your Roboflow project settings in the web interface
-- Ensure your API key has the necessary permissions
+![Buckets Example](Valid_Train_Test.png)
+
+Train the model, augmentation can increase the dataset by making minor modifications
+
+![Train Example](TrainPage.png)
+
+You are now ready to use the model for inference!
 
 ## Contributing
-
-Feel free to submit issues, feature requests, or pull requests to improve this tool.
+Pull requests and feature suggestions are welcome!
 
 ## License
-
-This project is open source and available under the MIT License.
-
-## Support
-
-For Roboflow-specific issues, visit the [Roboflow Documentation](https://docs.roboflow.com/) or [Roboflow Support](https://roboflow.com/support). # GAR011_Defect_Detection_Pipeline
+MIT License
